@@ -278,9 +278,9 @@ def greedy_best_first_search(draw, grid, start, end):
             return True
 
         for neighbor in current.neighbors:
-            if neighbor not in open_set_hash and not neighbor.is_barrier(): # Check if not in open set or is barrier
+            if neighbor not in open_set_hash and not neighbor.is_barrier():  # Check if not in open set or is barrier
                 count += 1
-                heuristic = h(neighbor.get_pos(), end.get_pos()) # Calculate heuristic
+                heuristic = h(neighbor.get_pos(), end.get_pos())  # Calculate heuristic
                 open_set.put((heuristic, count, neighbor))
                 open_set_hash.add(neighbor)
                 came_from[neighbor] = current
@@ -288,8 +288,9 @@ def greedy_best_first_search(draw, grid, start, end):
 
         # Update max frontier size based on open_set.queue
         max_frontier = max(max_frontier, len(open_set.queue))
-        
+
         draw()
+        pygame.time.delay(10)  # Add a small delay to prevent the UI from freezing
         if current != start:
             current.make_closed()
 
