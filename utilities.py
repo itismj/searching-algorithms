@@ -96,10 +96,13 @@ def h(p1, p2):
 
 
 def reconstruct_path(came_from, current, draw):
+	path_length = 0
 	while current in came_from:
+		path_length += 1
 		current = came_from[current]
 		current.make_path()
 		draw()
+	return path_length
 		
 def make_grid(rows, width):
 	grid = []

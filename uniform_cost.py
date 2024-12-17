@@ -31,7 +31,8 @@ def uniform_cost_search(draw, grid, start, end):
             end_time = time.time()
             elapsed_time = end_time - start_time
             print(f"Uniform Cost Search completed in {elapsed_time:.4f} seconds with {nodes_visited} nodes visited and {max_frontier} max frontier size.")
-            reconstruct_path(came_from, end, draw)
+            path_length = reconstruct_path(came_from, end, draw)
+            print(f"Path length is {path_length}")
             end.make_end()
             return True
 

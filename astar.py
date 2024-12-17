@@ -38,7 +38,8 @@ def astar_algorithm(draw, grid, start, end):
             elapsed_time = end_time - start_time
             print(f"A* Algorithm completed in {elapsed_time:.4f} seconds with {nodes_visited} nodes visited and {max_frontier} max frontier size.")
             record_metrics("A*", True, elapsed_time)  # Record success
-            reconstruct_path(came_from, end, draw)
+            path_length = reconstruct_path(came_from, end, draw)
+            print(f"Path length is {path_length}")
             end.make_end()
             return True
 
@@ -59,6 +60,8 @@ def astar_algorithm(draw, grid, start, end):
         draw()
         if current != start:
             current.make_closed()
+            # pygame.time.delay(100) # To slow down the search
+
 
     end_time = time.time()
     elapsed_time = end_time - start_time
