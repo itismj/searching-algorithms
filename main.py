@@ -2,6 +2,7 @@ import pygame
 import math
 from queue import PriorityQueue, Queue
 import time
+import random
 
 WIDTH = 800
 WIN = pygame.display.set_mode((WIDTH, WIDTH))
@@ -51,6 +52,7 @@ class Spot:
 
 	def reset(self):
 		self.color = WHITE
+		self.barrier = False
 
 	def make_start(self):
 		self.color = ORANGE
@@ -63,6 +65,7 @@ class Spot:
 
 	def make_barrier(self):
 		self.color = BLACK
+		self.barrier = True
 
 	def make_end(self):
 		self.color = TURQUOISE
@@ -72,6 +75,7 @@ class Spot:
 
 	def draw(self, win):
 		pygame.draw.rect(win, self.color, (self.x, self.y, self.width, self.width))
+	
 
 	def update_neighbors(self, grid):
 		self.neighbors = []
@@ -104,6 +108,61 @@ def reconstruct_path(came_from, current, draw):
 		draw()
 
 
+# def generate_maze(grid):
+#     for row in grid:
+#         for spot in row:
+#             if random.random() < 0.3:  # 30% chance of being a barrier
+#                 spot.make_barrier()
+#             else:
+#                 spot.reset()
+
+def generate_maze(grid):
+    # Helper function to get neighbors for maze generation
+    def get_neighbors(spot, grid):
+        neighbors = []
+        row, col = spot.row, spot.col
+        # Check for valid neighbors in the grid
+        if row > 1 and grid[row - 2][col].is_barrier():  # Up
+            neighbors.append((grid[row - 2][col], grid[row - 1][col]))
+        if row < len(grid) - 2 and grid[row + 2][col].is_barrier():  # Down
+            neighbors.append((grid[row + 2][col], grid[row + 1][col]))
+        if col > 1 and grid[row][col - 2].is_barrier():  # Left
+            neighbors.append((grid[row][col - 2], grid[row][col - 1]))
+        if col < len(grid[0]) - 2 and grid[row][col + 2].is_barrier():  # Right
+            neighbors.append((grid[row][col + 2], grid[row][col + 1]))
+        return neighbors
+
+    # Initialize the maze with barriers everywhere
+    for row in grid:
+        for spot in row:
+            spot.make_barrier()
+
+    # Randomly pick a starting cell
+    start_row = random.randrange(1, len(grid), 2)
+    start_col = random.randrange(1, len(grid[0]), 2)
+    stack = [grid[start_row][start_col]]
+    grid[start_row][start_col].reset()  # Open starting point
+
+    # Maze generation using recursive backtracking
+    while stack:
+        current = stack[-1]
+        neighbors = get_neighbors(current, grid)
+
+        if neighbors:  # If there are unvisited neighbors
+            next_cell, wall_between = random.choice(neighbors)
+            next_cell.reset()  # Open the neighbor cell
+            wall_between.reset()  # Remove the wall between
+            stack.append(next_cell)  # Visit the neighbor
+        else:
+            stack.pop()  # Backtrack if no unvisited neighbors
+
+    # Ensure the rightmost column and bottom row are barriers
+    rows = len(grid)
+    cols = len(grid[0])
+    for i in range(rows):
+        grid[i][-1].make_barrier()  # Rightmost column
+    for j in range(cols):
+        grid[-1][j].make_barrier()  # Bottom row
 
 def algorithm(draw, grid, start, end):
     nodes_visited = 0
@@ -253,7 +312,7 @@ def greedy_best_first_search(draw, grid, start, end):
     max_frontier = 0
     count = 0
     open_set = PriorityQueue()
-    open_set.put((0, count, start))  # Start with a heuristic of 0
+    open_set.put((0, count, start))
     came_from = {}
     open_set_hash = {start}
 
@@ -266,7 +325,9 @@ def greedy_best_first_search(draw, grid, start, end):
                 return False
 
         current = open_set.get()[2]
-        open_set_hash.remove(current)
+        # Only remove from open_set_hash AFTER processing neighbors
+        if current in open_set_hash:  # Check if it's still in the hash (important!)
+            open_set_hash.remove(current)
         nodes_visited += 1
 
         if current == end:
@@ -278,25 +339,140 @@ def greedy_best_first_search(draw, grid, start, end):
             return True
 
         for neighbor in current.neighbors:
-            if neighbor not in open_set_hash and not neighbor.is_barrier():  # Check if not in open set or is barrier
+            if neighbor not in open_set_hash and not neighbor.is_barrier():
                 count += 1
-                heuristic = h(neighbor.get_pos(), end.get_pos())  # Calculate heuristic
+                heuristic = h(neighbor.get_pos(), end.get_pos())
                 open_set.put((heuristic, count, neighbor))
                 open_set_hash.add(neighbor)
                 came_from[neighbor] = current
                 neighbor.make_open()
+            elif neighbor in open_set_hash and came_from.get(neighbor) is None:
+                came_from[neighbor] = current
+                
 
-        # Update max frontier size based on open_set.queue
-        max_frontier = max(max_frontier, len(open_set.queue))
-
+        max_frontier = max(max_frontier, len(open_set_hash))
         draw()
-        pygame.time.delay(10)  # Add a small delay to prevent the UI from freezing
+        pygame.time.delay(10)
         if current != start:
             current.make_closed()
 
     end_time = time.time()
     elapsed_time = end_time - start_time
     print(f"Greedy Best-First Search completed in {elapsed_time:.4f} seconds with {nodes_visited} nodes visited and {max_frontier} max frontier size.")
+    return False
+
+def dijkstra(draw, grid, start, end):
+    nodes_visited = 0
+    max_frontier = 0
+    count = 0
+    open_set = PriorityQueue()
+    open_set.put((0, count, start))  # Start with a distance of 0
+    came_from = {}
+    distance = {spot: float("inf") for row in grid for spot in row}
+    distance[start] = 0
+    open_set_hash = {start}
+
+    start_time = time.time()
+
+    while not open_set.empty():
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                return False
+
+        current = open_set.get()[2]
+        if current in open_set_hash:
+            open_set_hash.remove(current)
+        nodes_visited += 1
+
+        if current == end:
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+            print(f"Dijkstra's Algorithm completed in {elapsed_time:.4f} seconds with {nodes_visited} nodes visited and {max_frontier} max frontier size.")
+            reconstruct_path(came_from, end, draw)
+            end.make_end()
+            return True
+
+        for neighbor in current.neighbors:
+            temp_distance = distance[current] + 1  # Assuming each edge has a weight of 1
+
+            if temp_distance < distance[neighbor]:
+                came_from[neighbor] = current
+                distance[neighbor] = temp_distance
+                if neighbor not in open_set_hash:
+                    count += 1
+                    open_set.put((temp_distance, count, neighbor))
+                    open_set_hash.add(neighbor)
+                    neighbor.make_open()
+                elif neighbor in open_set_hash and came_from.get(neighbor) is None:
+                    came_from[neighbor] = current
+
+        max_frontier = max(max_frontier, len(open_set_hash))
+        draw()
+        pygame.time.delay(10)
+        if current != start:
+            current.make_closed()
+
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    print(f"Dijkstra's Algorithm completed in {elapsed_time:.4f} seconds with {nodes_visited} nodes visited and {max_frontier} max frontier size.")
+    return False
+
+def uniform_cost_search(draw, grid, start, end):
+    nodes_visited = 0
+    max_frontier = 0
+    count = 0
+    open_set = PriorityQueue()
+    open_set.put((0, count, start))  # Start with cost 0
+    came_from = {}
+    cost_so_far = {spot: float('inf') for row in grid for spot in row}
+    cost_so_far[start] = 0
+    open_set_hash = {start}
+
+    start_time = time.time()
+
+    while not open_set.empty():
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                return False
+
+        current = open_set.get()[2]
+        if current in open_set_hash:
+            open_set_hash.remove(current)
+        nodes_visited += 1
+
+        if current == end:
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+            print(f"Uniform Cost Search completed in {elapsed_time:.4f} seconds with {nodes_visited} nodes visited and {max_frontier} max frontier size.")
+            reconstruct_path(came_from, end, draw)
+            end.make_end()
+            return True
+
+        for neighbor in current.neighbors:
+            new_cost = cost_so_far[current] + 1  # Assuming uniform cost of 1 for each step. If not uniform, change this.
+
+            if new_cost < cost_so_far[neighbor]:
+                cost_so_far[neighbor] = new_cost
+                came_from[neighbor] = current
+                if neighbor not in open_set_hash:
+                    count += 1
+                    open_set.put((new_cost, count, neighbor))
+                    open_set_hash.add(neighbor)
+                    neighbor.make_open()
+                elif neighbor in open_set_hash and came_from.get(neighbor) is None:
+                    came_from[neighbor] = current
+
+        max_frontier = max(max_frontier, len(open_set_hash))
+        draw()
+        pygame.time.delay(10)
+        if current != start:
+            current.make_closed()
+
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    print(f"Uniform Cost Search completed in {elapsed_time:.4f} seconds with {nodes_visited} nodes visited and {max_frontier} max frontier size.")
     return False
 
 def make_grid(rows, width):
@@ -380,6 +556,7 @@ def main(win, width):
 					end = None
 
 			if event.type == pygame.KEYDOWN:
+				
 
 				if event.key == pygame.K_a and start and end: # A for A_star
 					for row in grid:
@@ -414,9 +591,27 @@ def main(win, width):
 							if spot.is_open() or spot.is_closed() or spot.is_path():  # If the spot was previously closed
 								spot.reset()
 							spot.update_neighbors(grid)
-
 					greedy_best_first_search(lambda: draw(win, grid, ROWS, width), grid, start, end)
-
+							
+				if event.key == pygame.K_j and start and end: # G for Djikstra Search
+					for row in grid:
+						for spot in row:
+							if spot.is_open() or spot.is_closed() or spot.is_path():  # If the spot was previously closed
+								spot.reset()
+							spot.update_neighbors(grid)
+					dijkstra(lambda: draw(win, grid, ROWS, width), grid, start, end)
+					
+				if event.key == pygame.K_u and start and end: # u for Uniform Cost Search
+					for row in grid:
+						for spot in row:
+							if spot.is_open() or spot.is_closed() or spot.is_path():  # If the spot was previously closed
+								spot.reset()
+							spot.update_neighbors(grid)
+					uniform_cost_search(lambda: draw(win, grid, ROWS, width), grid, start, end)
+				if event.key == pygame.K_m:  # Generate maze
+					start = None
+					end = None
+					generate_maze(grid)
 				if event.key == pygame.K_c:
 					start = None
 					end = None
